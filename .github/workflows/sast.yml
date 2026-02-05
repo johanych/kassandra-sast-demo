@@ -1,0 +1,35 @@
+name: SAST Scan
+
+  on:
+    push:
+      branches: [main, develop]
+    pull_request:
+      branches: [main]
+
+  jobs:
+    sast:
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout code
+          uses: actions/checkout@v4
+
+        - name: Run Semgrep
+          uses: returntocorp/semgrep-action@v1
+          with:
+            config: >-
+              p/security-audit
+              p/secrets
+              p/owasp-top-ten
+          env:
+            SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+
+        - name: Upload SARIF to Kassandra
+          if: always()
+          run: |
+            # Semgrep outputs to semgrep.sarif by default
+            if [ -f semgrep.sarif ]; then
+              curl -X POST \
+                -H "Content-Type: application/json" \
+                -d @semgrep.sarif \
+                "https://api.kassandra.red/api/v1/sast/webhooks/${{ secrets.KASSANDRA_PROJECT_ID }}/sarif?branch=${{ github.ref_name }}&commit=${{ github.sha }}"
+            fi
